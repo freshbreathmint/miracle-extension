@@ -1,0 +1,102 @@
+{
+  "name": "miracle-extension",
+  "displayName": "Miracle Framework",
+  "description": "Miracle Framework intergration for VSCode",
+  "version": "0.0.1",
+  "publisher": "mints",
+  "engines": {
+    "vscode": "^1.93.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": ["*"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "miracleFramework",
+          "title": "Miracle Framework",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "miracleFramework": [
+        {
+          "id": "iniTreeView",
+          "name": "INI Configuration"
+        },
+        {
+          "id": "buildPanel",
+          "name": "Build Actions"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "miracle.refreshIniTree",
+        "title": "Refresh INI Tree"
+      },
+      {
+        "command": "miracle.editIniValue",
+        "title": "Edit INI Value"
+      },
+      {
+        "command": "miracle.compileHot",
+        "title": "Hot Compile",
+        "icon": "$(flame)"
+      },
+      {
+        "command": "miracle.addDependency",
+        "title": "Add Dependency"
+      },
+      {
+        "command": "miracle.addLibrary",
+        "title": "Add Library"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "miracle.addLibrary",
+          "when": "view == iniTreeView",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "miracle.addDependency",
+          "when": "view == iniTreeView && viewItem == applicationOrLibrary",
+          "group": "inline"
+        },
+        {
+          "command": "miracle.compileHot",
+          "when": "view == iniTreeView && viewItem == applicationOrLibrary",
+          "group": "inline"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.7",
+    "@types/node": "20.x",
+    "@types/vscode": "^1.93.0",
+    "@typescript-eslint/eslint-plugin": "^8.3.0",
+    "@typescript-eslint/parser": "^8.3.0",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.4.1",
+    "eslint": "^9.9.1",
+    "typescript": "^5.5.4"
+  },
+  "dependencies": {
+    "ini": "^5.0.0"
+  }
+}
