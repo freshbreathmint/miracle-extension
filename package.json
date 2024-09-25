@@ -24,11 +24,11 @@
       "miracleFramework": [
         {
           "id": "iniTreeView",
-          "name": "INI Configuration"
+          "name": "Project Configuration"
         },
         {
           "id": "buildPanel",
-          "name": "Build Actions"
+          "name": "Actions"
         }
       ]
     },
