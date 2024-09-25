@@ -97,19 +97,27 @@ export class IniTreeDataProvider implements vscode.TreeDataProvider<IniTreeItem>
   }
 
   addDependency(item: IniTreeItem, dependency: string) {
-    const section = item.section ? `${item.section}.${item.label}` : item.label;
-    if (this.iniData[section]) {
-      const currentDeps = this.iniData[section]['dependencies'];
-      if (currentDeps) {
-        this.iniData[section]['dependencies'] = currentDeps + ',' + dependency;
-      } else {
-        this.iniData[section]['dependencies'] = dependency;
+    const keys = item.section ? item.section.split('.').concat(item.label) : [item.label];
+    let ref = this.iniData;
+  
+    for (let i = 0; i < keys.length; i++) {
+      if (!ref[keys[i]]) {
+        vscode.window.showErrorMessage(`Section ${keys.slice(0, i + 1).join('.')} not found.`);
+        return;
       }
-      this.updateIniFile();
-      this.refresh();
-    } else {
-      vscode.window.showErrorMessage(`Section ${section} not found.`);
+      ref = ref[keys[i]];
     }
+  
+    // At this point, 'ref' refers to the target section object
+    const currentDeps = ref['dependencies'];
+    if (currentDeps) {
+      ref['dependencies'] = `${currentDeps},${dependency}`;
+    } else {
+      ref['dependencies'] = dependency;
+    }
+  
+    this.updateIniFile();
+    this.refresh();
   }
 
   addLibrary(libraryName: string) {
