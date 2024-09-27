@@ -127,7 +127,7 @@ export class BuildPanelProvider implements vscode.WebviewViewProvider {
         </div>
 
         <div class="section">
-          <h2>Clean Build Directories</h2>
+          <h2>Framework Actions</h2>
           <button onclick="cleanBuildDirectories()">Clean</button>
         </div>
 
