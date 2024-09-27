@@ -28,7 +28,8 @@
         },
         {
           "id": "buildPanel",
-          "name": "Actions"
+          "name": "Actions",
+          "type": "webview"
         }
       ]
     },

@@ -3,6 +3,7 @@ import { IniTreeDataProvider } from './treeView';
 import { BuildPanelProvider } from './buildPanel';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as ini from 'ini';
 
 export function activate(context: vscode.ExtensionContext) {
   const workspaceFolders = vscode.workspace.workspaceFolders;
@@ -45,12 +46,11 @@ export function activate(context: vscode.ExtensionContext) {
     }),
     vscode.commands.registerCommand('miracle.compileHot', async (item: any) => {
       if (item) {
-        // Determine the target to build
         let target: string;
         if (item.label === 'application') {
           target = 'application';
         } else {
-          target = item.label
+          target = item.label;
         }
 
         // Prompt the user to select the platform
@@ -66,16 +66,35 @@ export function activate(context: vscode.ExtensionContext) {
         // Run the build script with target, build-type 'hot', and the selected platform
         runBuildScript('build', ['--target', target, '--platform', platform, '--build-type', 'hot'], workspaceRoot);
       }
+    }),
+    // Register new build and run commands
+    vscode.commands.registerCommand('miracle.buildExecutable', (linkType: string, platform: string, buildType: string) => {
+      runBuildScript(
+        'build-exe',
+        ['--platform', platform, '--link', linkType, '--build-type', buildType],
+        workspaceRoot
+      );
+    }),
+    vscode.commands.registerCommand('miracle.fullHotCompile', (platform: string) => {
+      // Run the build script for the specified platform
+      runBuildScript('build', ['--target', 'all', '--platform', platform, '--build-type', 'hot'], workspaceRoot);
+    }),
+    vscode.commands.registerCommand('miracle.runExecutable', (buildType: string, platform: string) => {
+      runExecutable(buildType, platform, workspaceRoot);
+    }),
+    // Register the cleanBuildDirectories command
+    vscode.commands.registerCommand('miracle.cleanBuildDirectories', () => {
+      runBuildScript('clean', [], workspaceRoot);
     })
   );
 
   // Initialize the Build Panel
   const buildPanelProvider = new BuildPanelProvider(context);
-  vscode.window.registerWebviewViewProvider('buildPanel', buildPanelProvider);
+  vscode.window.registerWebviewViewProvider(BuildPanelProvider.viewType, buildPanelProvider);
 }
 
 function runBuildScript(command: string, args: string[], workspaceRoot: string) {
-  const buildScriptPath = path.join(workspaceRoot, 'miracle', 'build.py'); // Updated path
+  const buildScriptPath = path.join(workspaceRoot, 'miracle', 'build.py');
 
   if (!fs.existsSync(buildScriptPath)) {
     vscode.window.showErrorMessage(`Build script not found at ${buildScriptPath}`);
@@ -92,20 +111,51 @@ function runBuildScript(command: string, args: string[], workspaceRoot: string) 
     }
   }
 
-  const terminal = vscode.window.createTerminal(`Build ${command}`);
+  let terminal = vscode.window.terminals.find((t) => t.name === 'Miracle Framework');
+  if (!terminal) {
+    terminal = vscode.window.createTerminal('Miracle Framework');
+  }
+
   const cmdArgs = [command, ...args].join(' ');
 
-  // Construct the command to execute ./miracle/build.py with arguments
-  const executeCommand = `./build.py ${cmdArgs}`;
-
-  // For cross-platform compatibility, especially on Windows, adjust the command
+  // Construct the command to execute build.py with arguments
   const isWindows = process.platform === 'win32';
-  const finalCommand = isWindows
-    ? `python "${path.join('miracle', 'build.py')}" ${cmdArgs}`
-    : executeCommand;
+  const pythonCommand = isWindows ? 'python' : 'python3';
+  const finalCommand = `${pythonCommand} "${buildScriptPath}" ${cmdArgs}`;
 
-  // Navigate to the workspace root and execute the build script
-  terminal.sendText(`cd "${workspaceRoot}/miracle" && ${finalCommand}`);
+  // Navigate to the miracle directory and execute the build script
+  terminal.sendText(`cd "${path.join(workspaceRoot, 'miracle')}" && ${finalCommand}`);
+  terminal.show();
+}
+
+function runExecutable(buildType: string, platform: string, workspaceRoot: string) {
+  const runScriptPath = path.join(workspaceRoot, 'miracle', 'run.py');
+
+  if (!fs.existsSync(runScriptPath)) {
+    vscode.window.showErrorMessage(`Run script not found at ${runScriptPath}`);
+    return;
+  }
+
+  // Determine the build directory (debug or release)
+  const dir = buildType === 'hot' || buildType === 'debug' ? 'debug' : 'release';
+
+  // Build the path to the executable relative to the 'miracle' folder
+  let execCommand = path.join('bin', platform, dir, 'executable');
+  if (platform === 'windows') {
+    execCommand += '.exe';
+  }
+
+  // Build the command to run run.py with execCommand as argument
+  const isWindows = process.platform === 'win32';
+  const pythonCommand = isWindows ? 'python' : 'python3';
+  const command = `${pythonCommand} "${runScriptPath}" "${execCommand}"`;
+
+  // Create a VS Code terminal and run the command
+  let terminal = vscode.window.terminals.find((t) => t.name === 'Miracle Framework');
+  if (!terminal) {
+    terminal = vscode.window.createTerminal('Miracle Framework');
+  }
+  terminal.sendText(`cd "${path.join(workspaceRoot, 'miracle')}" && ${command}`);
   terminal.show();
 }
 
