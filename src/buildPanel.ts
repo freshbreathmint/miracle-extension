@@ -1,7 +1,10 @@
 import * as vscode from 'vscode';
 
 export class BuildPanelProvider implements vscode.WebviewViewProvider {
-  public static readonly viewType = 'buildPanel'; // Updated to match package.json
+  public static readonly viewType = 'buildPanel';
+
+  // Define a key for storing the state
+  private readonly stateKey = 'buildPanel.state';
 
   constructor(private readonly context: vscode.ExtensionContext) {}
 
@@ -13,6 +16,25 @@ export class BuildPanelProvider implements vscode.WebviewViewProvider {
     webviewView.webview.options = {
       enableScripts: true,
     };
+
+    // Initialize state if not present
+    if (!this.context.globalState.get(this.stateKey)) {
+      const initialState = {
+        build: {
+          platform: 'linux',
+          linkType: 'dynamic',
+          buildType: 'debug',
+        },
+        hotcompile: {
+          platform: 'linux',
+        },
+        run: {
+          platform: 'linux',
+          buildType: 'debug',
+        },
+      };
+      this.context.globalState.update(this.stateKey, initialState);
+    }
 
     webviewView.webview.html = this.getHtmlForWebview(webviewView.webview);
 
@@ -43,14 +65,32 @@ export class BuildPanelProvider implements vscode.WebviewViewProvider {
         case 'cleanBuildDirectories':
           vscode.commands.executeCommand('miracle.cleanBuildDirectories');
           break;
+        case 'requestState':
+          // Send the current state to the webview
+          const state = this.context.globalState.get(this.stateKey);
+          webviewView.webview.postMessage({ command: 'updateState', state });
+          break;
+        case 'updateState':
+          // Update the state in globalState
+          this.context.globalState.update(this.stateKey, message.state);
+          break;
+      }
+    });
+
+    // Request the current state when the webview is loaded
+    webviewView.webview.onDidReceiveMessage((message) => {
+      if (message.command === 'ready') {
+        const state = this.context.globalState.get(this.stateKey);
+        webviewView.webview.postMessage({ command: 'updateState', state });
       }
     });
   }
 
   private getHtmlForWebview(webview: vscode.Webview): string {
-    const styleUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.context.extensionUri, 'media', 'style.css')
-    );
+    // If you have external CSS, you can include it here
+    // const styleUri = webview.asWebviewUri(
+    //   vscode.Uri.joinPath(this.context.extensionUri, 'media', 'style.css')
+    // );
 
     return `
       <!DOCTYPE html>
@@ -134,6 +174,62 @@ export class BuildPanelProvider implements vscode.WebviewViewProvider {
         <script>
           const vscode = acquireVsCodeApi();
 
+          // Listen for messages from the extension
+          window.addEventListener('message', event => {
+            const message = event.data;
+            switch (message.command) {
+              case 'updateState':
+                setState(message.state);
+                break;
+            }
+          });
+
+          // Function to set the state of the select elements
+          function setState(state) {
+            // Build Actions
+            document.getElementById('build-platform').value = state.build.platform;
+            document.getElementById('build-linkType').value = state.build.linkType;
+            document.getElementById('build-buildType').value = state.build.buildType;
+            // Hot Compile
+            document.getElementById('hotcompile-platform').value = state.hotcompile.platform;
+            // Run Actions
+            document.getElementById('run-platform').value = state.run.platform;
+            document.getElementById('run-buildType').value = state.run.buildType;
+          }
+
+          // Notify the extension that the webview is ready
+          window.onload = () => {
+            vscode.postMessage({ command: 'ready' });
+          };
+
+          // Add event listeners to update state when selections change
+          document.getElementById('build-platform').addEventListener('change', updateState);
+          document.getElementById('build-linkType').addEventListener('change', updateState);
+          document.getElementById('build-buildType').addEventListener('change', updateState);
+          document.getElementById('hotcompile-platform').addEventListener('change', updateState);
+          document.getElementById('run-platform').addEventListener('change', updateState);
+          document.getElementById('run-buildType').addEventListener('change', updateState);
+
+          // Function to gather the current state and send it to the extension
+          function updateState() {
+            const state = {
+              build: {
+                platform: document.getElementById('build-platform').value,
+                linkType: document.getElementById('build-linkType').value,
+                buildType: document.getElementById('build-buildType').value,
+              },
+              hotcompile: {
+                platform: document.getElementById('hotcompile-platform').value,
+              },
+              run: {
+                platform: document.getElementById('run-platform').value,
+                buildType: document.getElementById('run-buildType').value,
+              },
+            };
+            vscode.postMessage({ command: 'updateState', state });
+          }
+
+          // Build Executable Action
           function buildExecutable() {
             const platform = document.getElementById('build-platform').value;
             const linkType = document.getElementById('build-linkType').value;
@@ -146,6 +242,7 @@ export class BuildPanelProvider implements vscode.WebviewViewProvider {
             });
           }
 
+          // Full Hot Compile Action
           function fullHotCompile() {
             const platform = document.getElementById('hotcompile-platform').value;
             vscode.postMessage({
@@ -154,6 +251,7 @@ export class BuildPanelProvider implements vscode.WebviewViewProvider {
             });
           }
 
+          // Run Executable Action
           function runExecutable() {
             const platform = document.getElementById('run-platform').value;
             const buildType = document.getElementById('run-buildType').value;
@@ -164,6 +262,7 @@ export class BuildPanelProvider implements vscode.WebviewViewProvider {
             });
           }
 
+          // Clean Build Directories Action
           function cleanBuildDirectories() {
             vscode.postMessage({
               command: 'cleanBuildDirectories'
