@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as ini from 'ini';
 import * as fs from 'fs';
 import * as path from 'path';
+import { exec } from 'child_process';
 
 export class IniTreeDataProvider implements vscode.TreeDataProvider<IniTreeItem> {
   private _onDidChangeTreeData: vscode.EventEmitter<IniTreeItem | undefined | void> = new vscode.EventEmitter<IniTreeItem | undefined | void>();
@@ -9,6 +10,7 @@ export class IniTreeDataProvider implements vscode.TreeDataProvider<IniTreeItem>
 
   private iniData: any;
   private iniPath: string;
+  private terminalName: string = 'Miracle Framework';
 
   constructor(private workspaceRoot: string) {
     this.iniPath = path.join(this.workspaceRoot, 'config.ini');
@@ -28,7 +30,7 @@ export class IniTreeDataProvider implements vscode.TreeDataProvider<IniTreeItem>
   loadIniFile() {
     if (fs.existsSync(this.iniPath)) {
       const content = fs.readFileSync(this.iniPath, 'utf-8');
-      this.iniData = ini.parse(content);
+      this.iniData = ini.parse(content); // Removed { dot: false }
     } else {
       vscode.window.showErrorMessage(`config.ini not found at ${this.iniPath}`);
     }
@@ -54,8 +56,10 @@ export class IniTreeDataProvider implements vscode.TreeDataProvider<IniTreeItem>
               new IniTreeItem(
                 key,
                 data[key],
-                typeof data[key] === 'object' ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None,
-                element.section ? `${element.section}.${element.label}` : element.label
+                typeof data[key] === 'object'
+                  ? vscode.TreeItemCollapsibleState.Collapsed
+                  : vscode.TreeItemCollapsibleState.None,
+                element.section // Pass the current section
               )
           )
         );
@@ -67,12 +71,7 @@ export class IniTreeDataProvider implements vscode.TreeDataProvider<IniTreeItem>
       // Return root sections
       return Promise.resolve(
         Object.keys(this.iniData).map((key) => {
-          const item = new IniTreeItem(
-            key,
-            this.iniData[key],
-            vscode.TreeItemCollapsibleState.Collapsed,
-            ''
-          );
+          const item = new IniTreeItem(key, this.iniData[key], vscode.TreeItemCollapsibleState.Collapsed, key);
           // Set contextValue for application and library nodes
           if (key === 'application' || key.startsWith('library.')) {
             item.contextValue = 'applicationOrLibrary';
@@ -86,76 +85,178 @@ export class IniTreeDataProvider implements vscode.TreeDataProvider<IniTreeItem>
   }
 
   updateIniValue(item: IniTreeItem, value: string) {
-    const keys = item.section ? item.section.split('.').concat(item.label) : [item.label];
-    let ref = this.iniData;
-    for (let i = 0; i < keys.length - 1; i++) {
-      ref = ref[keys[i]];
+    const section = item.section;
+    const key = item.label;
+
+    if (section && this.iniData[section]) {
+      this.iniData[section][key] = value;
+    } else {
+      this.iniData[key] = value;
     }
-    ref[keys[keys.length - 1]] = value;
+
     this.updateIniFile();
     this.refresh();
   }
 
   addDependency(item: IniTreeItem, dependency: string) {
-    const keys = item.section ? item.section.split('.').concat(item.label) : [item.label];
-    let ref = this.iniData;
-  
-    for (let i = 0; i < keys.length; i++) {
-      if (!ref[keys[i]]) {
-        vscode.window.showErrorMessage(`Section ${keys.slice(0, i + 1).join('.')} not found.`);
-        return;
-      }
-      ref = ref[keys[i]];
-    }
-  
-    // At this point, 'ref' refers to the target section object
-    const currentDeps = ref['dependencies'];
-    if (currentDeps) {
-      ref['dependencies'] = `${currentDeps},${dependency}`;
-    } else {
-      ref['dependencies'] = dependency;
-    }
-  
-    this.updateIniFile();
-    this.refresh();
-  }
+    const section = item.section || item.label;
 
-  addLibrary(libraryName: string) {
-    const libSection = `library.${libraryName}`;
-    if (this.iniData[libSection]) {
-      vscode.window.showErrorMessage(`Library ${libraryName} already exists.`);
+    if (!section || !this.iniData[section]) {
+      vscode.window.showErrorMessage(`Section ${section} not found.`);
       return;
     }
-    const libraryPath = path.join(this.workspaceRoot, libraryName);
-    const srcPath = path.join(libraryPath, 'src');
-    const includePath = path.join(libraryPath, 'include');
 
-    // Create the directories
-    fs.mkdirSync(srcPath, { recursive: true });
-    fs.mkdirSync(includePath, { recursive: true });
+    const targetData = this.iniData[section];
 
-    this.iniData[libSection] = {
-      path: libraryName,
-      type: 'static',
-      dependencies: ''
-    };
-    this.updateIniFile();
-    this.refresh();
+    const currentDeps = targetData['dependencies'] || '';
+    const depsArray = currentDeps ? currentDeps.split(',').map((dep: string) => dep.trim()) : [];
+    if (!depsArray.includes(dependency)) {
+      depsArray.push(dependency);
+      targetData['dependencies'] = depsArray.join(',');
+      this.updateIniFile();
+      this.refresh();
+    } else {
+      vscode.window.showInformationMessage(`Dependency ${dependency} already exists.`);
+    }
+  }
+
+  async addLibrary() {
+    try {
+      // Prompt for the library name
+      let libraryName = await vscode.window.showInputBox({ prompt: 'Enter new library name' });
+      if (!libraryName) {
+        return; // User canceled
+      }
+  
+      // Sanitize libraryName to remove leading './', '/', or any backslashes
+      libraryName = libraryName.replace(/^\.?\/+/, '').replace(/[\\/]/g, '').trim();
+  
+      // Optional: Validate libraryName to contain only allowed characters
+      const validNameRegex = /^[A-Za-z0-9_-]+$/;
+      if (!validNameRegex.test(libraryName)) {
+        vscode.window.showErrorMessage('Library name can only contain letters, numbers, underscores, and hyphens.');
+        return;
+      }
+  
+      // Ensure the 'library' section exists
+      if (!this.iniData['library']) {
+        this.iniData['library'] = {};
+      }
+  
+      const libSection = libraryName;
+      if (this.iniData['library'][libSection]) {
+        vscode.window.showErrorMessage(`Library ${libraryName} already exists.`);
+        return;
+      }
+  
+      // Prompt for library type: static or dynamic
+      const libType = await vscode.window.showQuickPick(['static', 'dynamic'], {
+        placeHolder: 'Select library type',
+      });
+      if (!libType) {
+        return; // User canceled
+      }
+  
+      // Run setup.py with the library name and type
+      await this.runSetupScript(libraryName, libType);
+  
+      // After setup.py runs, add the new library section to iniData
+      this.iniData['library'][libSection] = {
+        path: libraryName, // Assuming the path is the same as libraryName
+        type: libType,
+        dependencies: '',
+      };
+  
+      // Write the updated iniData back to the ini file
+      this.updateIniFile();
+  
+      // Ask if the user wants to add this library as a dependency
+      const addDependency = await vscode.window.showQuickPick(['Yes', 'No'], {
+        placeHolder: 'Add this library as a dependency to application or other libraries?',
+      });
+      if (addDependency === 'Yes') {
+        // Get a list of 'application' and existing libraries
+        const options = ['application'];
+        if (this.iniData['library']) {
+          options.push(...Object.keys(this.iniData['library']).map(lib => `library.${lib}`));
+        }
+  
+        const target = await vscode.window.showQuickPick(options, {
+          placeHolder: 'Select where to add this dependency',
+        });
+        if (target) {
+          // Extract the section name
+          let sectionName = target;
+          if (target.startsWith('library.')) {
+            const libName = target.split('library.')[1];
+            sectionName = `library.${libName}`;
+          }
+  
+          // Update iniData to add this library as a dependency to the selected target
+          let targetData;
+          if (sectionName === 'application') {
+            targetData = this.iniData['application'];
+          } else {
+            const libKey = sectionName.split('library.')[1];
+            targetData = this.iniData['library'][libKey];
+          }
+  
+          if (targetData) {
+            const currentDeps = targetData['dependencies'] || '';
+            const depsArray = currentDeps ? currentDeps.split(',').map((dep: string) => dep.trim()) : [];
+            if (!depsArray.includes(libraryName)) {
+              depsArray.push(libraryName);
+              targetData['dependencies'] = depsArray.join(',');
+              this.updateIniFile();
+              this.refresh();
+            }
+          }
+        }
+      }
+  
+      // Refresh the tree view
+      this.refresh();
+      vscode.window.showInformationMessage(`Library '${libraryName}' added successfully.`);
+    } catch (error) {
+      // Handle errors if necessary
+      vscode.window.showErrorMessage(`Failed to add library: ${error}`);
+    }
+  }  
+
+  async runSetupScript(libraryName: string, libType: string): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      // Construct the command to execute setup.py with arguments
+      const setupScriptPath = path.join(this.workspaceRoot, 'miracle', 'setup.py');
+      const isWindows = process.platform === 'win32';
+      const pythonCommand = isWindows ? 'python' : 'python3';
+      const cmdArgs = `"${setupScriptPath}" library "${libraryName}" "${libType}"`;
+      const finalCommand = `${pythonCommand} ${cmdArgs}`;
+
+      // Execute the command using child_process.exec
+      exec(finalCommand, { cwd: path.join(this.workspaceRoot, 'miracle') }, (error, stdout, stderr) => {
+        if (error) {
+          vscode.window.showErrorMessage(`Error running setup script: ${error.message}\n${stderr}`);
+          reject(error);
+          return;
+        }
+        if (stderr) {
+          console.error(`Setup script stderr: ${stderr}`);
+        }
+        if (stdout) {
+          console.log(`Setup script stdout: ${stdout}`);
+        }
+        vscode.window.showInformationMessage(`Setup script executed successfully.`);
+        resolve();
+      });
+    });
   }
 
   private updateIniFile() {
-    let iniContent = ini.stringify(this.iniData);
-
-    // Post-process to replace escaped dots in section names
-    iniContent = iniContent.replace(/^\[(.+)\]$/gm, (match, sectionName) => {
-      // Replace escaped dots with actual dots
-      const unescapedSectionName = sectionName.replace(/\\\./g, '.');
-      return `[${unescapedSectionName}]`;
-    });
-
+    const iniContent = ini.stringify(this.iniData); // Removed { dot: false }
     fs.writeFileSync(this.iniPath, iniContent);
   }
 }
+
 export class IniTreeItem extends vscode.TreeItem {
   constructor(
     public readonly label: string,
@@ -171,13 +272,12 @@ export class IniTreeItem extends vscode.TreeItem {
       this.command = {
         command: 'miracle.editIniValue',
         title: 'Edit INI Value',
-        arguments: [this]
+        arguments: [this],
       };
       this.contextValue = 'iniItem';
     } else {
       // Determine contextValue
-      const fullSection = section ? `${section}.${label}` : label;
-      if (fullSection === 'application' || fullSection.startsWith('library.')) {
+      if (section === 'application' || section.startsWith('library.')) {
         // This is the 'application' node or a 'library.x' node
         this.contextValue = 'applicationOrLibrary';
       } else {

@@ -3,7 +3,6 @@ import { IniTreeDataProvider } from './treeView';
 import { BuildPanelProvider } from './buildPanel';
 import * as path from 'path';
 import * as fs from 'fs';
-import * as ini from 'ini';
 
 export function activate(context: vscode.ExtensionContext) {
   const workspaceFolders = vscode.workspace.workspaceFolders;
@@ -38,11 +37,7 @@ export function activate(context: vscode.ExtensionContext) {
       });
     }),
     vscode.commands.registerCommand('miracle.addLibrary', () => {
-      vscode.window.showInputBox({ prompt: 'Enter new library name' }).then((libName) => {
-        if (libName) {
-          iniTreeDataProvider.addLibrary(libName);
-        }
-      });
+      iniTreeDataProvider.addLibrary();
     }),
     vscode.commands.registerCommand('miracle.compileHot', async (item: any) => {
       if (item) {
@@ -123,7 +118,7 @@ function runBuildScript(command: string, args: string[], workspaceRoot: string) 
   const pythonCommand = isWindows ? 'python' : 'python3';
   const finalCommand = `${pythonCommand} "${buildScriptPath}" ${cmdArgs}`;
 
-  // Navigate to the miracle directory and execute the build script
+  // Send the command to the terminal
   terminal.sendText(`cd "${path.join(workspaceRoot, 'miracle')}" && ${finalCommand}`);
   terminal.show();
 }
@@ -150,11 +145,13 @@ function runExecutable(buildType: string, platform: string, workspaceRoot: strin
   const pythonCommand = isWindows ? 'python' : 'python3';
   const command = `${pythonCommand} "${runScriptPath}" "${execCommand}"`;
 
-  // Create a VS Code terminal and run the command
-  let terminal = vscode.window.terminals.find((t) => t.name === 'Miracle Framework');
+  // Find or create the 'Miracle Framework' terminal
+  let terminal = vscode.window.terminals.find(t => t.name === 'Miracle Framework');
   if (!terminal) {
     terminal = vscode.window.createTerminal('Miracle Framework');
   }
+
+  // Send the command to the terminal
   terminal.sendText(`cd "${path.join(workspaceRoot, 'miracle')}" && ${command}`);
   terminal.show();
 }
