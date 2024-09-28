@@ -137,8 +137,8 @@ export class BuildPanelProvider implements vscode.WebviewViewProvider {
       // Determine the available Python command
       const pythonCmd = await this.getPythonCommand();
 
-      // Execute the setup.py script
-      const setupCommand = `${pythonCmd} setup.py application ${projectName}`;
+      // Execute the setup.py script located in scripts/
+      const setupCommand = `${pythonCmd} scripts/setup.py application ${projectName}`;
       vscode.window.showInformationMessage('Running setup.py script...');
       const miraclePathResolved = path.resolve(workspaceFolder, 'miracle');
 
@@ -156,7 +156,7 @@ export class BuildPanelProvider implements vscode.WebviewViewProvider {
         return;
       }
 
-      // Execute the setup.py script
+      // Execute the setup.py script from scripts/
       const { stdout, stderr } = await execAsync(setupCommand, { cwd: miraclePathResolved });
 
       if (stderr && stderr.trim() !== '') {

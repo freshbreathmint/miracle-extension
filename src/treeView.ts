@@ -30,7 +30,7 @@ export class IniTreeDataProvider implements vscode.TreeDataProvider<IniTreeItem>
   loadIniFile() {
     if (fs.existsSync(this.iniPath)) {
       const content = fs.readFileSync(this.iniPath, 'utf-8');
-      this.iniData = ini.parse(content); // Removed { dot: false }
+      this.iniData = ini.parse(content);
     } else {
       vscode.window.showErrorMessage(`config.ini not found at ${this.iniPath}`);
     }
@@ -157,7 +157,7 @@ export class IniTreeDataProvider implements vscode.TreeDataProvider<IniTreeItem>
         return; // User canceled
       }
   
-      // Run setup.py with the library name and type
+      // Run setup.py with the library name and type (located in scripts/)
       await this.runSetupScript(libraryName, libType);
   
       // After setup.py runs, add the new library section to iniData
@@ -225,8 +225,8 @@ export class IniTreeDataProvider implements vscode.TreeDataProvider<IniTreeItem>
 
   async runSetupScript(libraryName: string, libType: string): Promise<void> {
     return new Promise<void>((resolve, reject) => {
-      // Construct the command to execute setup.py with arguments
-      const setupScriptPath = path.join(this.workspaceRoot, 'miracle', 'setup.py');
+      // Construct the command to execute setup.py with arguments (located in scripts/)
+      const setupScriptPath = path.join(this.workspaceRoot, 'miracle', 'scripts', 'setup.py');
       const isWindows = process.platform === 'win32';
       const pythonCommand = isWindows ? 'python' : 'python3';
       const cmdArgs = `"${setupScriptPath}" library "${libraryName}" "${libType}"`;
@@ -252,7 +252,7 @@ export class IniTreeDataProvider implements vscode.TreeDataProvider<IniTreeItem>
   }
 
   private updateIniFile() {
-    const iniContent = ini.stringify(this.iniData); // Removed { dot: false }
+    const iniContent = ini.stringify(this.iniData);
     fs.writeFileSync(this.iniPath, iniContent);
   }
 }

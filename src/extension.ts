@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { IniTreeDataProvider } from './treeView';
+import { IniTreeDataProvider, IniTreeItem } from './treeView';
 import { BuildPanelProvider } from './buildPanel';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -89,7 +89,7 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 function runBuildScript(command: string, args: string[], workspaceRoot: string) {
-  const buildScriptPath = path.join(workspaceRoot, 'miracle', 'build.py');
+  const buildScriptPath = path.join(workspaceRoot, 'miracle', 'scripts', 'build.py');
 
   if (!fs.existsSync(buildScriptPath)) {
     vscode.window.showErrorMessage(`Build script not found at ${buildScriptPath}`);
@@ -116,7 +116,7 @@ function runBuildScript(command: string, args: string[], workspaceRoot: string) 
   // Construct the command to execute build.py with arguments
   const isWindows = process.platform === 'win32';
   const pythonCommand = isWindows ? 'python' : 'python3';
-  const finalCommand = `${pythonCommand} "${buildScriptPath}" ${cmdArgs}`;
+  const finalCommand = `${pythonCommand} scripts/build.py ${cmdArgs}`;
 
   // Send the command to the terminal
   terminal.sendText(`cd "${path.join(workspaceRoot, 'miracle')}" && ${finalCommand}`);
@@ -124,7 +124,7 @@ function runBuildScript(command: string, args: string[], workspaceRoot: string) 
 }
 
 function runExecutable(buildType: string, platform: string, workspaceRoot: string) {
-  const runScriptPath = path.join(workspaceRoot, 'miracle', 'run.py');
+  const runScriptPath = path.join(workspaceRoot, 'miracle', 'scripts', 'run.py');
 
   if (!fs.existsSync(runScriptPath)) {
     vscode.window.showErrorMessage(`Run script not found at ${runScriptPath}`);
@@ -143,7 +143,7 @@ function runExecutable(buildType: string, platform: string, workspaceRoot: strin
   // Build the command to run run.py with execCommand as argument
   const isWindows = process.platform === 'win32';
   const pythonCommand = isWindows ? 'python' : 'python3';
-  const command = `${pythonCommand} "${runScriptPath}" "${execCommand}"`;
+  const command = `${pythonCommand} scripts/run.py "${execCommand}"`;
 
   // Find or create the 'Miracle Framework' terminal
   let terminal = vscode.window.terminals.find(t => t.name === 'Miracle Framework');
