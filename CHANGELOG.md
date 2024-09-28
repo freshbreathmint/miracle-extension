@@ -2,8 +2,14 @@
 
 All notable changes to the "miracle-extension" extension will be documented in this file.
 
-Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
+## [Version 1.0.1]
 
-## [Unreleased]
+Changed:
+ - All scripts are searched for in the scripts/ subfolder.
 
+## [Version 1.0.0]
+
+Added:
 - Initial release
+- Config Tree Editor
+- Build Panel
