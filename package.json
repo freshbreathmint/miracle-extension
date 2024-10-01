@@ -2,7 +2,7 @@
   "name": "miracle-extension",
   "displayName": "Miracle Framework",
   "description": "Miracle Framework intergration for VSCode",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "publisher": "mints",
   "repository": {
     "type": "git",
